@@ -93,6 +93,28 @@ func PlayGame(player *Player, bet Bet) (float64, error) {
 	return payout, nil
 }
 
+// Ask the user if they want to continue playing
+func AskToContinue() bool {
+	var response string
+	fmt.Print("Do you want to continue playing? (yes/no): ")
+	fmt.Scan(&response)
+	return response == "yes"
+}
+
+// Ask the user to deposit more money
+func AskToDeposit(player *Player) {
+	var depositAmount float64
+	fmt.Print("You don't have enough money. Do you want to deposit more money? (yes/no): ")
+	var response string
+	fmt.Scan(&response)
+	if response == "yes" {
+		fmt.Print("Enter deposit amount: ")
+		fmt.Scan(&depositAmount)
+		player.Deposit(depositAmount)
+		fmt.Printf("New balance: %.2f\n", player.GetBalance())
+	}
+}
+
 // Test the program.
 func main() {
 
@@ -107,7 +129,7 @@ func main() {
 	fmt.Printf("After deposit: %.2f\n", player.GetBalance())
 
 	// Create a new bet with an adjustable stake
-	betAmount := 150.0
+	betAmount := 50.0
 	bet := NewBet(player.ID, betAmount)
 	fmt.Printf("Bet amount: %.2f, Odds: %.2f\n", bet.Amount, bet.Odds)
 
@@ -116,14 +138,18 @@ func main() {
 	fmt.Println("RTP: ", rtp)
 
 	//Testing with more rounds.
-	for i := 0; i < 10; i++ {
-		fmt.Printf("Round %d:\n", i+1)
-
+	for {
+		fmt.Println("\n--- New Round ---")
 		// Placing a bet
 		err := player.PlaceBet(bet.Amount)
 		if err != nil {
 			fmt.Println("Error placing bet:", err)
-			break // If not enought mony for the player, the game is ending.
+			AskToDeposit(&player)
+			if player.GetBalance() < bet.Amount {
+				fmt.Println("Still insufficient balance. Ending game.")
+				break
+			}
+			continue
 		}
 
 		gamePayout, err := PlayGame(&player, bet)
@@ -134,8 +160,8 @@ func main() {
 		}
 		fmt.Printf("Final balance: %.2f\n", player.GetBalance())
 
-		if player.GetBalance() < bet.Amount {
-			fmt.Println("Insufficient balance to continue playing.") //We will check if there is still enough balance to continue
+		if !AskToContinue() {
+			fmt.Println("Thank you for playing!")
 			break
 		}
 	}
