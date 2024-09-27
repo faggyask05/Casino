@@ -93,21 +93,36 @@ func PlayGame(player *Player, bet Bet) (float64, error) {
 	return payout, nil
 }
 
-// Ask the user if they want to continue playing
+// Ask the user if they want to continue playing, validate input
 func AskToContinue() bool {
 	var response string
-	fmt.Print("Do you want to continue playing? (yes/no): ")
-	fmt.Scan(&response)
+	for {
+		fmt.Print("Do you want to continue playing? (yes/no): ")
+		fmt.Scan(&response)
+		if response == "yes" || response == "no" {
+			break
+		} else {
+			fmt.Println("Invalid input. Please enter 'yes' or 'no'.")
+		}
+	}
 	return response == "yes"
 }
 
-// Ask the user to deposit more money
+// Ask the user to deposit more money, validate input
 func AskToDeposit(player *Player) {
-	var depositAmount float64
-	fmt.Print("You don't have enough money. Do you want to deposit more money? (yes/no): ")
 	var response string
-	fmt.Scan(&response)
+	for {
+		fmt.Print("You don't have enough money. Do you want to deposit more money? (yes/no): ")
+		fmt.Scan(&response)
+		if response == "yes" || response == "no" {
+			break
+		} else {
+			fmt.Println("Invalid input. Please enter 'yes' or 'no'.")
+		}
+	}
+
 	if response == "yes" {
+		var depositAmount float64
 		fmt.Print("Enter deposit amount: ")
 		fmt.Scan(&depositAmount)
 		player.Deposit(depositAmount)
@@ -115,49 +130,73 @@ func AskToDeposit(player *Player) {
 	}
 }
 
+// Ask the user to place a bet with a minimum and maximum limit
+func AskForBetAmount(minBet, maxBet float64) float64 {
+	var betAmount float64
+	for {
+		fmt.Printf("Enter your bet amount (minimum: %.2f, maximum: %.2f): ", minBet, maxBet)
+		fmt.Scan(&betAmount)
+		if betAmount >= minBet && betAmount <= maxBet {
+			break
+		} else {
+			fmt.Println("Invalid bet amount. Please enter a value within the allowed range.")
+		}
+	}
+	return betAmount
+}
+
 // Test the program.
 func main() {
-
 	rand.Seed(time.Now().UnixNano())
 
 	player := Player{ID: "player1"}
-	player.SetBalance(100.0) // A balance közvetlen beállítása setterrel
+	player.SetBalance(100.0) // Direct adjustment of the balance with a setter.
 
 	fmt.Printf("Starting balance: %.2f\n", player.GetBalance())
 
-	player.Deposit(50)
-	fmt.Printf("After deposit: %.2f\n", player.GetBalance())
+	minBet := 5.0 // Fix minimum tét
 
-	// Create a new bet with an adjustable stake
-	betAmount := 50.0
-	bet := NewBet(player.ID, betAmount)
-	fmt.Printf("Bet amount: %.2f, Odds: %.2f\n", bet.Amount, bet.Odds)
-
-	//RTP Calculation.
-	rtp := CalculateRTP(bet.Odds, 0.495)
-	fmt.Println("RTP: ", rtp)
-
-	//Testing with more rounds.
 	for {
 		fmt.Println("\n--- New Round ---")
-		// Placing a bet
-		err := player.PlaceBet(bet.Amount)
+
+		// We dynamically determine the maximum bet based on the player's current balance.
+		maxBet := player.GetBalance()
+
+		//If the balance is less than the minimum bet, we offer the deposit option.
+		if maxBet < minBet {
+			fmt.Println("Your balance is less than the minimum bet.")
+			AskToDeposit(&player)
+
+			maxBet = player.GetBalance()
+
+			// If there is still not enough money, we end the game.
+			if maxBet < minBet {
+				fmt.Println("Still insufficient balance to place the minimum bet. Game over!")
+				break
+			}
+		}
+
+		// We ask for the bet from the player
+		betAmount := AskForBetAmount(minBet, maxBet)
+		bet := NewBet(player.ID, betAmount)
+		fmt.Printf("Bet amount: %.2f, Odds: %.2f\n", bet.Amount, bet.Odds)
+
+		// Bet processing
+		err := player.PlaceBet(betAmount)
 		if err != nil {
 			fmt.Println("Error placing bet:", err)
 			AskToDeposit(&player)
-			if player.GetBalance() < bet.Amount {
-				fmt.Println("Still insufficient balance. Ending game.")
-				break
-			}
 			continue
 		}
 
+		// Game round processing
 		gamePayout, err := PlayGame(&player, bet)
 		if err != nil {
 			fmt.Println("Error:", err)
 		} else {
 			fmt.Printf("Payout: %.2f\n", gamePayout)
 		}
+
 		fmt.Printf("Final balance: %.2f\n", player.GetBalance())
 
 		if !AskToContinue() {
