@@ -1,34 +1,35 @@
 package main
 
 import (
+	"crypto/rand"
 	"fmt"
-	"math/rand"
-	"time"
+	"math/big"
 )
 
-/**Declare the Player "Class".*/
+// Define the Player struct.
 type Player struct {
 	ID      string
 	balance float64
 }
 
-/**Declare the bet "Class".*/
+// Define the Bet struct.
 type Bet struct {
 	PlayerID string
 	Amount   float64
 	Odds     float64
 }
 
-/**This function adds a specified amount to the player's balance, thus increasing the player's money limit.*/
+// GetBalance returns the player's current balance.
 func (p *Player) GetBalance() float64 {
 	return p.balance
 }
 
+// SetBalance sets a new balance for the player.
 func (p *Player) SetBalance(newBalance float64) {
 	p.balance = newBalance
 }
 
-/**This function deducts a specified amount from the player's balance if it is sufficient. If the player's balance is insufficient to pay, it will return an error message.*/
+// PlaceBet deducts the bet amount from the player's balance.
 func (p *Player) PlaceBet(betAmount float64) error {
 	if betAmount <= 0 {
 		return fmt.Errorf("invalid bet amount")
@@ -40,12 +41,12 @@ func (p *Player) PlaceBet(betAmount float64) error {
 	return nil
 }
 
-/**This function subtracts the specified bet amount from the player's balance. If the player's balance is not enough for the bet, it will return an error message.*/
+// Deposit adds money to the player's balance.
 func (p *Player) Deposit(amount float64) {
 	p.SetBalance(p.GetBalance() + amount)
 }
 
-/**This function calculates the player's payout depending on the outcome of a bet.*/
+// CalculatePayout calculates the player's payout based on the bet and whether they win.
 func (p *Player) CalculatePayout(bet Bet, win bool) (float64, error) {
 	if win {
 		payout := bet.Amount * bet.Odds
@@ -55,25 +56,24 @@ func (p *Player) CalculatePayout(bet Bet, win bool) (float64, error) {
 	return 0, nil
 }
 
-/** This function can be Calculation of multiplier based on the bet.*/
-func CalculateOdds(betAmount float64) float64 {
-	if betAmount <= 10 {
-		return 1.2
-	} else if betAmount <= 50 {
-		return 1.5
-	} else {
-		return 2.0
+// CalculateOdds computes the odds based on the RTP constant and bet amount.
+// This is the first-degree equation where payoutMultiplier = RTP * prediction.
+func CalculateOdds(rtp, prediction float64) float64 {
+	return rtp * prediction
+}
+
+// GenerateCryptoRandom generates a secure random float between 0 and 1.
+func GenerateCryptoRandom() (float64, error) {
+	nBig, err := rand.Int(rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		return 0, err
 	}
+	return float64(nBig.Int64()) / 1000000.0, nil
 }
 
-/** This function can be RTP calculation based on bet multiplier and winning chance.*/
-func CalculateRTP(odds, winChance float64) float64 {
-	return (winChance * odds) * 100
-}
-
-/**This Function can be create a new bet.*/
-func NewBet(playerID string, amount float64) Bet {
-	odds := CalculateOdds(amount)
+// NewBet creates a new bet based on the player's choice and bet amount.
+func NewBet(playerID string, amount float64, rtp float64) Bet {
+	odds := CalculateOdds(rtp, amount)
 	return Bet{
 		PlayerID: playerID,
 		Amount:   amount,
@@ -81,47 +81,58 @@ func NewBet(playerID string, amount float64) Bet {
 	}
 }
 
-/** This function is the process and business logic of the specific game.*/
+// PlayGame simulates a round of the game.
 func PlayGame(player *Player, bet Bet) (float64, error) {
-	winChance := 0.495 / bet.Odds
-	win := rand.Float64() < winChance
+	// Calculate winChance based on bet amount
+	winChance := 1 / (1 + bet.Amount/10)
 
+	// Secure random generator using crypto/rand
+	winRandom, err := GenerateCryptoRandom()
+	if err != nil {
+		return 0, err
+	}
+
+	// Determine if player wins based on winChance
+	win := winRandom < winChance
+
+	// Calculate payout based on whether the player won or lost
 	payout, err := player.CalculatePayout(bet, win)
 	if err != nil {
 		return 0, err
 	}
+
 	return payout, nil
 }
 
-// Ask the user if they want to continue playing, validate input
+// AskToContinue prompts the player if they want to continue playing.
 func AskToContinue() bool {
 	var response string
 	for {
-		fmt.Print("Do you want to continue playing? (yes/no): ")
+		fmt.Print("Do you want to continue playing? (y/n): ")
 		fmt.Scan(&response)
-		if response == "yes" || response == "no" {
+		if response == "y" || response == "n" {
 			break
 		} else {
-			fmt.Println("Invalid input. Please enter 'yes' or 'no'.")
+			fmt.Println("Invalid input. Please enter 'y' or 'n'.")
 		}
 	}
-	return response == "yes"
+	return response == "y"
 }
 
-// Ask the user to deposit more money, validate input
+// AskToDeposit prompts the player to deposit more money.
 func AskToDeposit(player *Player) {
 	var response string
 	for {
-		fmt.Print("You don't have enough money. Do you want to deposit more money? (yes/no): ")
+		fmt.Print("You don't have enough money. Do you want to deposit more money? (y/n): ")
 		fmt.Scan(&response)
-		if response == "yes" || response == "no" {
+		if response == "y" || response == "n" {
 			break
 		} else {
-			fmt.Println("Invalid input. Please enter 'yes' or 'no'.")
+			fmt.Println("Invalid input. Please enter 'y' or 'n'.")
 		}
 	}
 
-	if response == "yes" {
+	if response == "y" {
 		var depositAmount float64
 		fmt.Print("Enter deposit amount: ")
 		fmt.Scan(&depositAmount)
@@ -130,7 +141,7 @@ func AskToDeposit(player *Player) {
 	}
 }
 
-// Ask the user to place a bet with a minimum and maximum limit
+// AskForBetAmount prompts the player to place a bet with a min and max limit.
 func AskForBetAmount(minBet, maxBet float64) float64 {
 	var betAmount float64
 	for {
@@ -145,43 +156,60 @@ func AskForBetAmount(minBet, maxBet float64) float64 {
 	return betAmount
 }
 
-// Test the program.
-func main() {
-	rand.Seed(time.Now().UnixNano())
+// CalculateAverageRTP simulates 1 million iterations to find the average RTP output.
+func CalculateAverageRTP(rtp float64, iterations int) float64 {
+	totalPayout := 0.0
 
+	for i := 0; i < iterations; i++ {
+		// Simulate a random bet amount
+		betAmount := float64(5 + (i % 10)) // Example bet amount
+		odds := CalculateOdds(rtp, betAmount)
+
+		// Simulate win or lose (50% chance)
+		winRandom, _ := GenerateCryptoRandom()
+		win := winRandom < 0.5 // 50% win chance
+
+		if win {
+			totalPayout += betAmount * odds
+		} else {
+			totalPayout -= betAmount
+		}
+	}
+
+	return totalPayout / float64(iterations)
+}
+
+// Main function to simulate the game.
+func main() {
+	rtpConstant := 0.95 // Example RTP constant
 	player := Player{ID: "player1"}
-	player.SetBalance(100.0) // Direct adjustment of the balance with a setter.
+	player.SetBalance(100.0) // Start with a balance of 100
 
 	fmt.Printf("Starting balance: %.2f\n", player.GetBalance())
 
-	minBet := 5.0 // Fix minimum tét
+	minBet := 5.0 // Set minimum bet
 
 	for {
 		fmt.Println("\n--- New Round ---")
 
-		// We dynamically determine the maximum bet based on the player's current balance.
 		maxBet := player.GetBalance()
 
-		//If the balance is less than the minimum bet, we offer the deposit option.
 		if maxBet < minBet {
 			fmt.Println("Your balance is less than the minimum bet.")
 			AskToDeposit(&player)
 
 			maxBet = player.GetBalance()
-
-			// If there is still not enough money, we end the game.
-			if maxBet < minBet {
-				fmt.Println("Still insufficient balance to place the minimum bet. Game over!")
-				break
-			}
 		}
 
-		// We ask for the bet from the player
+		if maxBet < minBet {
+			fmt.Println("Still insufficient balance to place the minimum bet. Game over!")
+			break
+		}
+
 		betAmount := AskForBetAmount(minBet, maxBet)
-		bet := NewBet(player.ID, betAmount)
+		bet := NewBet(player.ID, betAmount, rtpConstant)
 		fmt.Printf("Bet amount: %.2f, Odds: %.2f\n", bet.Amount, bet.Odds)
 
-		// Bet processing
 		err := player.PlaceBet(betAmount)
 		if err != nil {
 			fmt.Println("Error placing bet:", err)
@@ -189,7 +217,6 @@ func main() {
 			continue
 		}
 
-		// Game round processing
 		gamePayout, err := PlayGame(&player, bet)
 		if err != nil {
 			fmt.Println("Error:", err)
@@ -200,8 +227,13 @@ func main() {
 		fmt.Printf("Final balance: %.2f\n", player.GetBalance())
 
 		if !AskToContinue() {
+			fmt.Printf("Your final balance: %.2f\n", player.GetBalance())
 			fmt.Println("Thank you for playing!")
 			break
 		}
 	}
+	// Calculate average RTP output
+	averageRTP := CalculateAverageRTP(rtpConstant, 1000000)
+	fmt.Printf("Average RTP output over 1 million iterations: %.2f\n", averageRTP)
+
 }
